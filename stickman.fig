@@ -1,0 +1,39 @@
+# Figure definition file
+
+fig StickMan
+
+# everything is going to be attached to a length=0 root stick
+
+# stick definition
+# s <len> <angle deg> [<motion-type: none/normal/kinematic> <is-circle: 1/0>]
+
+s 1 20 -90 # torso
+
+s 2 6 0 none # neck
+s 3 16 0 normal true # head
+
+s 4 15 90 kinematic # arm
+s 5 15 0 # forearm
+s 6 15 -90 kinematic # arm
+s 7 15 0 # forearm
+
+s 8 16 60 kinematic
+s 9 16 0
+s 10 16 120 kinematic
+s 11 16 0
+
+# stick relationships
+# r <parent-id> <child-id>
+# assumes root = 0
+
+r 0 1 # root -> torso
+r 1 2 # torso -> neck
+r 2 3 # neck -> head
+r 1 4 # torso -> arm
+r 4 5 # arm -> forearm
+r 1 6 # torso -> arm
+r 6 7 # arm -> forearm
+r 0 8 # root -> leg
+r 8 9 # leg -> leg/foot
+r 0 10 # root -> leg
+r 10 11 # leg -> leg/foot
