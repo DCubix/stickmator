@@ -1,13 +1,15 @@
-﻿#include "Core/olcPixelGameEngine.h"
-#include "Core/olcPGEX_TinyGUI.h"
-#include "Core/Stick.h"
-#include "Core/CommandFile.h"
-#include "Core/tinyFileDialogs.h"
-#include "Core/UndoRedo.h"
+﻿#include <olcPixelGameEngine.h>
+#include <olcPGEX_TinyGUI.h>
+#include <Stick.h>
+#include <CommandFile.h>
+#include <tinyFileDialogs.h>
+#include <UndoRedo.h>
 
-#include "gif.h"
+#include <gif.h>
 
 #include <filesystem>
+
+#define APP_VERSION "1.1"
 
 constexpr int gScreenWidth = 320;
 constexpr int gScreenHeight = 240;
@@ -302,9 +304,10 @@ public:
         if (gui.MakePopup("popup_about", mnuAboutItems, 1, selectedMenu)) {
             tinyfd_messageBox(
                 "About StickMator",
-                    "StickMator is a simple stickman animation tool.\n\n"
-                    "Created by: Diego Lopes\n"
-                    "Version: 1.0",
+                    "StickMator is a simple stickman animation tool written in C++ using the olcPixelGameEngine.\n"
+                    "\n\n"
+                    "Created by Diego Lopes\n"
+                    "Version: " APP_VERSION,
                 "ok",
                 "info",
                 0
@@ -346,7 +349,7 @@ public:
         }
 
         if (GetMouse(0).bReleased && stickMoved && selectedRoot) {
-            selectedRoot->SetKeyframe(currentFrame);
+            selectedStick->SetKeyframe(currentFrame);
             if (oldPos != selectedStick->pos || oldAngle != selectedStick->angle) {
                 undoRedo.AddCommand(
                     new MoveStickCommand(
@@ -364,7 +367,7 @@ public:
     }
 
     void DrawFigure(Figure& figure, const olc::vi2d& offset) {
-        DrawStick(figure.root.get(), olc::BLANK, offset);
+        DrawFigure(figure, olc::BLANK, offset);
 	}
 
     void DrawOnionSkin(Figure& figure, const olc::vi2d& offset) {
@@ -374,22 +377,28 @@ public:
 
         const int framesToDraw[] = {
             fig.NearFrameLeft(currentFrame),
-            //(fig.NearFrameRight(currentFrame) + fig.NearFrameLeft(currentFrame)) / 2
         };
         const olc::Pixel colors[] = { olc::Pixel(133, 161, 255), olc::Pixel(255, 153, 153) };
 
         int i = 0;
         for (int frame : framesToDraw) {
             fig.SaveState();
-            fig.Animate(frame);
-            DrawStick(&fig, colors[i++], offset, false);
+            AnimateAllFigureSticks(figure, frame);
+            DrawFigure(figure, colors[i++], offset, false);
             fig.RestoreState();
+        }
+    }
+
+    void AnimateAllFigureSticks(Figure& fig, int frame) {
+        auto sticks = fig.root->GetSticksRecursiveSorted();
+        for (auto stk : sticks) {
+            stk->Animate(frame);
         }
     }
 
     void AnimateAll(int frame) {
 		for (auto& fig : figures) {
-			fig->root->Animate(frame);
+            AnimateAllFigureSticks(*fig, frame);
 		}
 	}
 
@@ -401,12 +410,12 @@ public:
 		return maxFrames;
 	}
 
-    void DrawStick(Stick* stk, olc::Pixel color, const olc::vi2d& offset = { 0, 0 }, bool manipulate = true) {
-        bool canMove = stk->motionType != MotionType::None;
-        bool selected = selectedStick && selectedStick->GetRoot() == stk->GetRoot();
+    void DrawFigure(Figure& fig, olc::Pixel color, const olc::vi2d& offset = { 0, 0 }, bool manipulate = true) {
+        auto sticks = fig.root->GetSticksRecursiveVisibleSorted();
+        bool selected = selectedStick && selectedStick->GetRoot() == fig.root.get();
 
-        if (!playing && manipulate) {
-            auto [ mode, stick ] = stk->GetStickForManipulation(this, offset);
+        for (auto stk : sticks) {
+            auto [mode, stick] = stk->GetStickForManipulation(this, offset);
             if (stick) {
                 if (GetMouse(0).bPressed && !moving) {
                     oldPos = stick->pos;
@@ -420,12 +429,18 @@ public:
             else {
                 if (GetMouse(0).bReleased) selectionMode = ManipulatorMode::None;
             }
+
+            if (stick) break;
         }
 
-        stk->Draw(this, nullptr, offset, color);
+        for (auto stk : sticks) {
+            stk->Draw(this, nullptr, offset, color);
+        }
 
-        if (!playing && manipulate && canMove && selected) {
-            stk->DrawManipulators(this, offset);
+        if (!playing && manipulate && selected) {
+            for (auto stk : sticks) {
+                stk->DrawManipulators(this, offset);
+            }
         }
     }
 
@@ -687,7 +702,7 @@ public:
 			AnimateAll(frame);
 
             for (auto& fig : figures) {
-                DrawStick(fig->root.get(), olc::BLANK, { 0, 0 }, false);
+                DrawFigure(*fig.get(), olc::BLANK, {0, 0}, false);
             }
 
             GifWriteFrame(&gif, (uint8_t*)GetDrawTarget()->GetData(), gScreenWidth, gScreenHeight, delay);

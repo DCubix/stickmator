@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <variant>
+#include <stdexcept>
 
 using CommandArg = std::variant<double, bool, std::string>;
 
@@ -11,7 +12,18 @@ struct Command {
 	std::vector<CommandArg> args;
 
 	template <typename T>
+	T GetOptionalArg(size_t index, T defaultValue) const {
+		if (index >= args.size()) {
+			return defaultValue;
+		}
+		return std::get<T>(args[index]);
+	}
+
+	template <typename T>
 	T GetArg(size_t index) const {
+		if (index >= args.size() || args.empty()) {
+			throw std::runtime_error("Command argument index out of range");
+		}
 		return std::get<T>(args[index]);
 	}
 };

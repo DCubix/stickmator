@@ -33,7 +33,11 @@ struct Stick {
     int len{ 0 };
     olc::Pixel color{ olc::BLACK };
 
+    bool isDriver{ false };
     bool isCircle{ false };
+    bool isVisible{ true };
+
+    int drawOrder{ 0 };
 
     MotionType motionType{ MotionType::Normal };
 
@@ -42,6 +46,10 @@ struct Stick {
 
     Stick* parent{ nullptr };
     std::vector<std::unique_ptr<Stick>> children;
+
+    Stick* driver{ nullptr };
+    float driverInfluence{ 1.0f };
+    float driverAngleOffset{ 0.0f };
 
     std::vector<StickKeyframe> animation{};
 
@@ -53,6 +61,7 @@ struct Stick {
     olc::vi2d Tip() const;
     olc::vi2d WorldPos() const;
     void SetWorldPos(olc::vi2d newPos);
+    double Angle() const;
     double WorldAngle() const;
     void SetWorldAngle(double newAngle, bool compensateChildren = false);
 
@@ -90,6 +99,13 @@ struct Stick {
         const olc::vi2d& offset,
         bool bypassMotionCheck = false
     );
+
+    std::vector<Stick*> GetSticksRecursive();
+    std::vector<Stick*> GetSticksRecursiveSorted();
+    std::vector<Stick*> GetSticksRecursiveVisibleSorted();
+
+    bool IsDriven() const { return driver != nullptr && std::abs(driverInfluence) > 1e-5f; }
+    bool canMove() const { return motionType != MotionType::None && !IsDriven() && isVisible; }
 
     static int gStickId;
 };

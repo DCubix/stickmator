@@ -1,9 +1,9 @@
-#include "../Core/olcPixelGameEngine.h"
-#include "../Core/olcPGEX_TinyGUI.h"
-#include "../Core/Stick.h"
-#include "../Core/UndoRedo.h"
+#include <olcPixelGameEngine.h>
+#include <olcPGEX_TinyGUI.h>
+#include <Stick.h>
+#include <UndoRedo.h>
 
-#include "../Core/tinyFileDialogs.h"
+#include <tinyFileDialogs.h>
 
 #include <iostream>
 
@@ -113,9 +113,7 @@ public:
 		Clear(olc::WHITE);
 		SetPixelMode(olc::Pixel::Mode::ALPHA);
 
-		auto& fig = *figure.root;
-
-		DrawStick(&fig);
+		DrawFigure(figure);
 
 		if (selectedStick) {
 			switch (selectionMode) {
@@ -150,6 +148,8 @@ public:
         if (gui.Button("mnu_edit", gui.RectCutLeft(30), "Edit")) {
             gui.ShowPopup("popup_edit");
         }
+
+		gui.RectCutLeft(2);
 
 		gui.Label(
 			gui.PeekRect(),
@@ -197,55 +197,6 @@ public:
 		gui.Label(gui.RectCutTop(8), "Properties");
 
 		if (selectedStick && selectedStick->parent) {
-			gui.Toggle("chk_circle", gui.RectCutTop(11), "Is Circle", selectedStick->isCircle);
-
-			int motTypeIdx = int(selectedStick->motionType);
-			if (gui.Button("btn_mot_type", gui.RectCutTop(11), "[" + mnuMotionType[motTypeIdx] + "]")) {
-				gui.ShowPopup("popup_motion_type");
-			}
-
-			gui.Spinner("spn_len", gui.RectCutTop(11), selectedStick->len, 0, 100, 1, "Len. %d");
-			if (gui.Spinner("spn_ang", gui.RectCutTop(11), angleDeg, -180, 180, 1, "Ang. %d")) {
-				selectedStick->angle = angleDeg * Pi / 180.0f;
-			}
-
-
-			if (
-				gui.WidgetPressed("spn_len") || gui.WidgetPressed("spn_len_left") ||
-				gui.WidgetPressed("spn_ang") || gui.WidgetPressed("spn_ang_left") ||
-				gui.WidgetPressed("spn_len_right") || gui.WidgetPressed("spn_ang_right")
-			) {
-				oldLen = selectedStick->len;
-				oldAngle = selectedStick->angle;
-			}
-			
-			if (
-				gui.WidgetReleased("spn_len") || gui.WidgetReleased("spn_len_left") ||
-				gui.WidgetReleased("spn_ang") || gui.WidgetReleased("spn_ang_left") ||
-				gui.WidgetReleased("spn_len_right") || gui.WidgetReleased("spn_ang_right")
-			) {
-				if (selectedStick && (oldLen != selectedStick->len || oldAngle != selectedStick->angle)) {
-					undoRedo.AddCommand(
-						new ChangeStickCommand(
-							this, selectedStick,
-							oldLen, oldAngle,
-							selectedStick->len, selectedStick->angle,
-							oldColor, selectedStick->color
-						)
-					)->Execute();
-				}
-			}
-
-		} else {
-			gui.Label(gui.RectCutTop(11), "[Root Stick]", false, olc::BLACK);
-		}
-
-		gui.PopRect(); // stick props area
-
-		stickPropsArea = gui.RectCutLeft(72);
-		gui.PushRect(stickPropsArea.Expand(-2));
-		gui.RectCutTop(8);
-		if (selectedStick && selectedStick->parent) {
 			std::string colorStr = utils::StringFormat(
 				"#%02X%02X%02X",
 				selectedStick->color.r, selectedStick->color.g, selectedStick->color.b
@@ -262,6 +213,87 @@ public:
 						oldColor, olc::Pixel(pickedColor[0], pickedColor[1], pickedColor[2])
 					)
 				)->Execute();
+			}
+
+			gui.Toggle("chk_visible", gui.RectCutTop(11), "Is Visible", selectedStick->isVisible);
+			gui.Toggle("chk_circle", gui.RectCutTop(11), "Is Circle", selectedStick->isCircle);
+			//gui.Toggle("chk_driver", gui.RectCutTop(11), "Is Driver", selectedStick->isDriver);
+		} else {
+			gui.Label(gui.RectCutTop(11), "[Root Stick]", false, olc::BLACK);
+		}
+
+		gui.PopRect(); // stick props area
+
+		stickPropsArea = gui.RectCutLeft(72);
+		gui.PushRect(stickPropsArea.Expand(-2));
+		gui.RectCutTop(8);
+		if (selectedStick && selectedStick->parent) {
+			int motTypeIdx = int(selectedStick->motionType);
+			if (gui.Button("btn_mot_type", gui.RectCutTop(11), "[" + mnuMotionType[motTypeIdx] + "]")) {
+				gui.ShowPopup("popup_motion_type");
+			}
+
+			gui.Spinner("spn_len", gui.RectCutTop(11), selectedStick->len, 0, 100, 1, "Len. %d");
+			if (gui.Spinner("spn_ang", gui.RectCutTop(11), angleDeg, -180, 180, 1, "Ang. %d")) {
+				selectedStick->angle = angleDeg * Pi / 180.0f;
+			}
+
+			if (
+				gui.WidgetPressed("spn_len") || gui.WidgetPressed("spn_len_left") ||
+				gui.WidgetPressed("spn_ang") || gui.WidgetPressed("spn_ang_left") ||
+				gui.WidgetPressed("spn_len_right") || gui.WidgetPressed("spn_ang_right")
+				) {
+				oldLen = selectedStick->len;
+				oldAngle = selectedStick->angle;
+			}
+
+			if (
+				gui.WidgetReleased("spn_len") || gui.WidgetReleased("spn_len_left") ||
+				gui.WidgetReleased("spn_ang") || gui.WidgetReleased("spn_ang_left") ||
+				gui.WidgetReleased("spn_len_right") || gui.WidgetReleased("spn_ang_right")
+				) {
+				if (selectedStick && (oldLen != selectedStick->len || oldAngle != selectedStick->angle)) {
+					undoRedo.AddCommand(
+						new ChangeStickCommand(
+							this, selectedStick,
+							oldLen, oldAngle,
+							selectedStick->len, selectedStick->angle,
+							oldColor, selectedStick->color
+						)
+					)->Execute();
+				}
+			}
+
+			// TODO: undo/redo
+			gui.Spinner("spn_draworder", gui.RectCutTop(11), selectedStick->drawOrder, 0, 999, 1, "Order: %d");
+		}
+		gui.PopRect(); // stick props area
+
+		stickPropsArea = gui.RectCutLeft(72);
+		gui.PushRect(stickPropsArea.Expand(-2));
+		gui.RectCutTop(8);
+		if (selectedStick && selectedStick->parent) {
+			if (!selectedStick->driver) {
+				std::string btnText = "Set Driver";
+				if (pickingDriver) btnText = "Picking...";
+				if (gui.Button(
+					"btn_sel_driver",
+					gui.RectCutTop(11),
+					btnText
+				) && !pickingDriver) {
+					pickingDriver = true;
+				}
+			}
+			else {
+				if (gui.Button("btn_del_driver", gui.RectCutTop(11), "Clear Driver")) {
+					selectedStick->driver->isDriver = false;
+					selectedStick->driver->driver = nullptr;
+					selectedStick->driver = nullptr;
+				}
+				gui.Label(gui.RectCutTop(11), "Stk #" + std::to_string(selectedStick->driver->id));
+
+				gui.SpinnerF("spn_driver_influence", gui.RectCutTop(11), selectedStick->driverInfluence, -1.0f, 1.0f, 0.01f, "Infl.: %.2f");
+				gui.SpinnerF("spn_driver_angle_offset", gui.RectCutTop(11), selectedStick->driverAngleOffset, -180.0f, 180.0f, 1.0f, "Off.: %.2f");
 			}
 		}
 		gui.PopRect(); // stick props area
@@ -344,29 +376,47 @@ public:
 		return !shouldExit;
 	}
 
-	void DrawStick(Stick* stk) {
-		auto [mode, stick] = stk->GetStickForManipulation(this, { 0, 0 }, true);
-		if (stick) {
-			if (GetMouse(0).bPressed && !moving) {
-				oldLen = stick->len;
-				oldAngle = stick->angle;
-				oldColor = stick->color;
-				moving = true;
+	void DrawFigure(Figure& fig) {
+		auto sticks = fig.root->GetSticksRecursiveSorted();
+
+		for (auto stk : sticks) {
+			auto [mode, stick] = stk->GetStickForManipulation(this, { 0, 0 }, true);
+			if (stick) {
+				bool wasPickingDriver = pickingDriver;
+				if (GetMouse(0).bPressed && !moving) {
+					oldLen = stick->len;
+					oldAngle = stick->angle;
+					oldColor = stick->color;
+					moving = true;
+
+					if (pickingDriver && selectedStick) {
+						stick->isDriver = true;
+						selectedStick->driver = stick;
+						pickingDriver = false;
+					}
+				}
+
+				if (!wasPickingDriver) SelectStick(stick);
 			}
-			
-			SelectStick(stick);
-		}
-		if (mode != ManipulatorMode::None) {
-			selectionMode = mode;
-		}
-		else {
-			if (GetMouse(0).bReleased) {
-				selectionMode = ManipulatorMode::None;
+
+			if (mode != ManipulatorMode::None) {
+				selectionMode = mode;
 			}
+			else {
+				if (GetMouse(0).bReleased) {
+					selectionMode = ManipulatorMode::None;
+				}
+			}
+
+			if (stick) break;
 		}
 
-		stk->Draw(this, selectedStick);
-		stk->DrawManipulatorsEditor(this);
+		for (auto stk : sticks) {
+			stk->Draw(this, selectedStick);
+		}
+		for (auto stk : sticks) {
+			stk->DrawManipulatorsEditor(this);
+		}
 	}
 
 	void SelectStick(Stick* stick) {
@@ -390,10 +440,13 @@ public:
 
 	void act_New() {
 		figure = Figure{};
+		figure.name = "Untitled";
 		figure.root = std::make_unique<Stick>();
 		figure.root->pos = olc::vi2d{ ScreenWidth() / 2, ScreenHeight() / 2 };
 		selectedStick = figure.root.get();
 		SelectStick(figure.root.get());
+		fileName = "";
+		isSaved = true;
 	}
 
 	bool mnu_ExitAction() {
@@ -486,7 +539,10 @@ public:
 	size_t mnuSelMotionType{ 0 }, mnuSelFile{ 0 }, mnuSelEdit{ 0 };
 
 	std::string fileName{ "" };
-	bool isSaved{ false }, editLength{ false }, moving{ false };
+	bool isSaved{ false },
+		editLength{ false },
+		moving{ false },
+		pickingDriver{ false };
 
 	UndoRedo undoRedo{};
 };
@@ -503,7 +559,7 @@ int APIENTRY WinMain(
 #endif 
 {
 	FigureEditor editor;
-	if (editor.Construct(400, 300, 2, 2))
+	if (editor.Construct(480, 320, 2, 2))
 		editor.Start();
 	return 0;
 }

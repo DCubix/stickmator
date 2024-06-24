@@ -74,15 +74,23 @@ void Stick::SetWorldPos(olc::vi2d newPos) {
     pos = newPos - parentPos;
 }
 
+double Stick::Angle() const {
+    if (!IsDriven()) return angle;
+    float offsetRadians = driverAngleOffset * Pi / 180.0f;
+    return driver->angle * driverInfluence + offsetRadians;
+}
+
 double Stick::WorldAngle() const {
     double parentAngle = 0.0f;
     if (parent) {
         parentAngle = parent->WorldAngle();
     }
-    return angle + parentAngle;
+    return Angle() + parentAngle;
 }
 
 void Stick::SetWorldAngle(double newAngle, bool compensateChildren) {
+    if (IsDriven()) return; // ignore driven sticks
+
     double parentAngle = 0.0f;
     if (parent) {
         parentAngle = parent->WorldAngle();
@@ -116,11 +124,7 @@ bool Stick::HasAnimationRecursive(int frame) {
 }
 
 void Stick::Animate(int frame) {
-    if (animation.empty()) return;
-
-    //auto easeInOut = [](float t) {
-    //    return 3.0f * t * t - 2.0f * t * t * t;
-    //};
+    if (animation.empty() || IsDriven()) return;
 
     for (size_t i = 0; i < animation.size() - 1; i++) {
         auto& skf = animation[i];
@@ -133,13 +137,11 @@ void Stick::Animate(int frame) {
                 pos = olc::vf2d{ skf.pos }.lerp(olc::vf2d{ ekf.pos }, t);
         }
     }
-
-    for (auto& child : children) {
-        child->Animate(frame);
-    }
 }
 
 void Stick::SetKeyframe(int frame) {
+    if (IsDriven()) return; // ignore driven sticks
+
     auto stkPos = std::find_if(animation.begin(), animation.end(), [&](const StickKeyframe& a) {
         return a.frame == frame;
     });
@@ -157,9 +159,9 @@ void Stick::SetKeyframe(int frame) {
         kf.angle = angle;
     }
 
-    for (auto& child : children) {
-        child->SetKeyframe(frame);
-    }
+    //for (auto& child : children) {
+    //    child->SetKeyframe(frame);
+    //}
 
     auto compareKeyframes = [](const StickKeyframe& a, const StickKeyframe& b) {
         return a.frame < b.frame;
@@ -168,6 +170,8 @@ void Stick::SetKeyframe(int frame) {
 }
 
 void Stick::SetKeyframeSingle(int frame, const olc::vi2d& pos, double angle) {
+    if (IsDriven()) return; // ignore driven sticks
+
     auto stkPos = std::find_if(animation.begin(), animation.end(), [&](const StickKeyframe& a) {
         return a.frame == frame;
     });
@@ -192,6 +196,8 @@ void Stick::SetKeyframeSingle(int frame, const olc::vi2d& pos, double angle) {
 }
 
 void Stick::DeleteKeyframe(int frame) {
+    if (IsDriven()) return; // ignore driven sticks
+
     auto stkPos = std::find_if(animation.begin(), animation.end(), [&](const StickKeyframe& a) {
 		return a.frame == frame;
 	});
@@ -253,6 +259,7 @@ int Stick::NearFrameRight(int frame) const {
 }
 
 void Stick::SaveState() {
+    if (IsDriven()) return; // ignore driven sticks
     tempAngle = angle;
     tempPos = pos;
     for (auto& child : children) {
@@ -261,6 +268,7 @@ void Stick::SaveState() {
 }
 
 void Stick::RestoreState() {
+    if (IsDriven()) return; // ignore driven sticks
     angle = tempAngle;
     pos = tempPos;
     for (auto& child : children) {
@@ -286,28 +294,25 @@ static void DrawThickLine(
 }
 
 void Stick::Draw(olc::PixelGameEngine* pge, Stick* selected, const olc::vi2d& offset, const olc::Pixel& colorOverride) {
+    if (len <= 0 || !isVisible || isDriver) return;
+
     olc::Pixel color = colorOverride.a > 0 ? colorOverride : this->color;
-    if (len > 0) {
-        if (!isCircle) {
-            if (selected == this) {
-                DrawThickLine(pge, WorldPos() + offset, WorldPos() + Tip() + offset, olc::BLUE, 4);
-            }
-            DrawThickLine(pge, WorldPos() + offset, WorldPos() + Tip() + offset, color, 3);
+    if (!isCircle) {
+        if (selected == this) {
+            DrawThickLine(pge, WorldPos() + offset, WorldPos() + Tip() + offset, olc::BLUE, 4);
         }
-        else {
-            if (selected == this) {
-                pge->FillCircle(WorldPos() + Tip() / 2 + offset, len / 2 + 1, olc::BLUE);
-            }
-            pge->FillCircle(WorldPos() + Tip() / 2 + offset, len / 2, color);
-        }
+        DrawThickLine(pge, WorldPos() + offset, WorldPos() + Tip() + offset, color, 3);
     }
-    for (auto& child : children) {
-		child->Draw(pge, selected, offset, colorOverride);
-	}
+    else {
+        if (selected == this) {
+            pge->FillCircle(WorldPos() + Tip() / 2 + offset, len / 2 + 1, olc::BLUE);
+        }
+        pge->FillCircle(WorldPos() + Tip() / 2 + offset, len / 2, color);
+    }
 }
 
 void Stick::DrawManipulators(olc::PixelGameEngine* pge, const olc::vi2d& offset) {
-    if (motionType != MotionType::None) {
+    if (canMove()) {
         if (parent && len > 0) {
             auto col = motionType == MotionType::Kinematic ? olc::CYAN : olc::RED;
             pge->FillCircle(WorldPos() + Tip() + offset, 2, col);
@@ -317,25 +322,21 @@ void Stick::DrawManipulators(olc::PixelGameEngine* pge, const olc::vi2d& offset)
             pge->FillCircle(WorldPos() + offset, 2, orange);
         }
     }
-
-    for (auto& child : children) {
-		child->DrawManipulators(pge, offset);
-	}
+    else {
+        auto grey = olc::Pixel(128, 128, 128);
+		pge->FillCircle(WorldPos() + offset, 2, grey);
+    }
 }
 
 void Stick::DrawManipulatorsEditor(olc::PixelGameEngine* pge) {
     if (parent && len > 0) {
         auto col = motionType == MotionType::Kinematic ? olc::CYAN : olc::RED;
-        if (motionType == MotionType::None) col = olc::GREY;
+        if (!canMove()) col = olc::GREY;
         pge->FillCircle(WorldPos() + Tip(), 2, col);
     }
     else {
         auto orange = olc::Pixel(255, 165, 0);
         pge->FillCircle(WorldPos(), 2, orange);
-    }
-
-    for (auto& child : children) {
-        child->DrawManipulatorsEditor(pge);
     }
 }
 
@@ -349,7 +350,7 @@ std::pair<ManipulatorMode, Stick*> Stick::GetStickForManipulation(
     bool bypassMotionCheck
 ) {
     olc::vi2d mousePosRel = pge->GetMousePos() - offset;
-    bool canRotate = motionType != MotionType::None;
+    bool canRotate = canMove();
     if (!parent) {
         if (pge->GetMouse(0).bPressed && PointInCircle(mousePosRel, WorldPos(), 3)) {
             return { ManipulatorMode::Move, this };
@@ -372,12 +373,51 @@ std::pair<ManipulatorMode, Stick*> Stick::GetStickForManipulation(
         }
     }
 
+    return { ManipulatorMode::None, nullptr };
+}
+
+std::vector<Stick*> Stick::GetSticksRecursive() {
+    std::vector<Stick*> sticks;
+	sticks.push_back(this);
     for (auto& child : children) {
-		auto [mode, stick] = child->GetStickForManipulation(pge, offset, bypassMotionCheck);
-		if (stick) return { mode, stick };
+		auto childSticks = child->GetSticksRecursive();
+		sticks.insert(sticks.end(), childSticks.begin(), childSticks.end());
+	}
+	return sticks;
+}
+
+std::vector<Stick*> Stick::GetSticksRecursiveSorted() {
+    std::vector<Stick*> sticks;
+	sticks.push_back(this);
+    for (auto& child : children) {
+		auto childSticks = child->GetSticksRecursiveSorted();
+		sticks.insert(sticks.end(), childSticks.begin(), childSticks.end());
 	}
 
-    return { ManipulatorMode::None, nullptr };
+	// sort by id
+    std::sort(sticks.begin(), sticks.end(), [](const Stick* a, const Stick* b) {
+		return a->drawOrder < b->drawOrder;
+	});
+
+	return sticks;
+}
+
+std::vector<Stick*> Stick::GetSticksRecursiveVisibleSorted() {
+    std::vector<Stick*> sticks;
+    if (isVisible) sticks.push_back(this);
+    for (auto& child : children) {
+        auto childSticks = child->GetSticksRecursiveVisibleSorted();
+        for (auto& childStick : childSticks) {
+            if (childStick->isVisible) sticks.push_back(childStick);
+		}
+	}
+
+    // sort by draw order
+    std::sort(sticks.begin(), sticks.end(), [](const Stick* a, const Stick* b) {
+		return a->drawOrder < b->drawOrder;
+	});
+
+    return sticks;
 }
 
 void Figure::LoadFromString(const std::string& data) {
@@ -420,21 +460,18 @@ void Figure::LoadFromCommands(const std::vector<Command>& commands) {
             }
 
             std::string motionType = "normal";
-            bool isCircle = false;
+            bool isCircle = false, isDriver = false, isVisible = false;
+            int drawOrder = 0;
             std::string colorHex = "#000000";
 
-            if (cmd.args.size() >= 4) {
-                motionType = cmd.GetArg<std::string>(3);
-                std::transform(motionType.begin(), motionType.end(), motionType.begin(), ::tolower);
-            }
+            motionType = cmd.GetOptionalArg<std::string>(3, "normal");
+            std::transform(motionType.begin(), motionType.end(), motionType.begin(), ::tolower);
 
-            if (cmd.args.size() >= 5) {
-                isCircle = cmd.GetArg<bool>(4);
-            }
-
-            if (cmd.args.size() >= 6) {
-				colorHex = cmd.GetArg<std::string>(5);
-			}
+            isCircle = cmd.GetOptionalArg<bool>(4, false);
+            colorHex = cmd.GetOptionalArg<std::string>(5, "#000000");
+            isDriver = cmd.GetOptionalArg<bool>(6, false);
+            isVisible = cmd.GetOptionalArg<bool>(7, true);
+            drawOrder = int(cmd.GetOptionalArg<double>(8, 0.0));
 
             olc::Pixel color = olc::BLACK;
             if (colorHex[0] == '#' && colorHex.size() == 7) {
@@ -452,6 +489,9 @@ void Figure::LoadFromCommands(const std::vector<Command>& commands) {
             stick->len = len;
             stick->isCircle = isCircle;
             stick->color = color;
+            stick->isDriver = isDriver;
+            stick->isVisible = isVisible;
+            stick->drawOrder = drawOrder;
 
             if (motionType == "none") {
                 stick->motionType = MotionType::None;
@@ -464,6 +504,26 @@ void Figure::LoadFromCommands(const std::vector<Command>& commands) {
             }
 
             sticks[id] = std::move(stick);
+        }
+        else if (cmd.name == "d") {
+            // stick drivers
+            // d <stick-id> <driver-id> <influence> [<angle-offset>]
+            int stickId = int(cmd.GetArg<double>(0));
+            int driverId = int(cmd.GetArg<double>(1));
+            float influence = float(cmd.GetOptionalArg<double>(2, 1.0));
+            float angleOffset = float(cmd.GetOptionalArg<double>(3, 0.0));
+
+            Stick* stick = root->GetChild(stickId);
+            Stick* driver = root->GetChild(driverId);
+
+            if (!stick || !driver) {
+				throw std::runtime_error("Stick or driver not found");
+			}
+
+            stick->driver = driver;
+            stick->driverInfluence = influence;
+            stick->driverAngleOffset = angleOffset;
+            driver->isDriver = true;
         }
         else if (cmd.name == "r") {
             // stick relationships
@@ -512,35 +572,60 @@ void Figure::LoadFromCommands(const std::vector<Command>& commands) {
 }
 
 static void SaveStick(CommandFile& cf, Stick* stick) {
-    if (stick->parent) {
-        std::vector<CommandArg> args;
-        args.push_back(double(stick->id));
-        args.push_back(double(stick->len));
-        args.push_back(stick->angle * 180.0 / Pi);
+    if (!stick->parent) return;
+
+    std::vector<CommandArg> args;
+    args.push_back(double(stick->id));
+    args.push_back(double(stick->len));
+    args.push_back(stick->angle * 180.0 / Pi);
         
-        switch (stick->motionType) {
-            case MotionType::None: args.push_back("none"); break;
-            case MotionType::Normal: args.push_back("normal"); break;
-            case MotionType::Kinematic: args.push_back("kinematic"); break;
-        }
-
-        args.push_back(stick->isCircle);
-
-        args.push_back(utils::StringFormat("#%02X%02X%02X", stick->color.r, stick->color.g, stick->color.b));
-
-        cf.AddCommandVec("s", args);
+    switch (stick->motionType) {
+        case MotionType::None: args.push_back("none"); break;
+        case MotionType::Normal: args.push_back("normal"); break;
+        case MotionType::Kinematic: args.push_back("kinematic"); break;
     }
 
-    for (auto& child : stick->children) {
-        Stick* childPtr = child.get();
-        SaveStick(cf, childPtr);
-    }
+    args.push_back(stick->isCircle);
+    args.push_back(utils::StringFormat("#%02X%02X%02X", stick->color.r, stick->color.g, stick->color.b));
+
+    args.push_back(stick->isDriver);
+    args.push_back(stick->isVisible);
+    args.push_back(double(stick->drawOrder));
+
+    cf.AddCommandVec("s", args);
+}
+
+static void SaveSticks(CommandFile& cf, Stick* stick) {
+    Stick* root = stick->GetRoot();
+    auto sticks = root->GetSticksRecursive();
+
+    // sort it in a way that drivers are saved first before the driven sticks
+    // then for non-driven sticks, sort them by their ids
+    std::sort(sticks.begin(), sticks.end(), [](const Stick* a, const Stick* b) {
+        if (a->IsDriven() && !b->IsDriven()) return true;
+        if (!a->IsDriven() && b->IsDriven()) return false;
+        return a->id < b->id;
+    });
+
+    for (auto& stick : sticks) {
+		SaveStick(cf, stick);
+	}
 }
 
 static void SaveRelations(CommandFile& cf, Stick* stick) {
     for (auto& child : stick->children) {
 		cf.AddCommand("r", double(stick->id), double(child->id));
 		SaveRelations(cf, child.get());
+	}
+}
+
+static void SaveDriverDecl(CommandFile& cf, Stick* stick) {
+    if (stick->IsDriven()) {
+		cf.AddCommand("d", double(stick->id), double(stick->driver->id), stick->driverInfluence, stick->driverAngleOffset);
+	}
+
+    for (auto& child : stick->children) {
+		SaveDriverDecl(cf, child.get());
 	}
 }
 
@@ -579,8 +664,9 @@ CommandFile Figure::Save(bool saveRootPosition) const {
         cf.AddCommand("pos", double(root->pos.x), double(root->pos.y));
     }
 
-    SaveStick(cf, root.get());
+    SaveSticks(cf, root.get());
     SaveRelations(cf, root.get());
+    SaveDriverDecl(cf, root.get());
     SaveKeyframes(cf, root.get());
 
     cf.AddCommand("figend", name);

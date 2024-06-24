@@ -88,6 +88,13 @@ public:
         const std::string& fmt = "%d",
         const olc::Pixel& bg = olc::Pixel(0, 0, 0, 0)
     );
+    bool SpinnerF(
+        const std::string& name,
+		Rect bounds,
+		float& value, float min = 0.0f, float max = 1.0f, float step = 0.01f,
+		const std::string& fmt = "%.2f",
+		const olc::Pixel& bg = olc::Pixel(0, 0, 0, 0)
+    );
     bool EditBox(const std::string& name, Rect bounds, std::string& text);
 
     bool MakePopup(
@@ -145,6 +152,7 @@ private:
         size_t id;
         WidgetState state{ WidgetState::Idle };
         bool pressed{ false }, released{ false };
+        int value{ 0 };
     };
 
     struct Popup {
@@ -166,6 +174,68 @@ private:
     void DrawPopups();
 
     void ThreeDFrame(Rect bounds, olc::Pixel color, WidgetState state);
+
+    template <typename T>
+    bool SpinnerImpl(
+        const std::string& name,
+        Rect bounds,
+        const std::function<void(T&, T)> fnIncrement,
+        T& value, T min, T max, T step,
+        const std::string& fmt = "%d",
+        const olc::Pixel& bg = olc::Pixel(0, 0, 0, 0)
+    ) {
+        const auto dark = PixelBrightness(baseColor, 0.5f);
+        const int thumbWidth = 8;
+
+        ThreeDFrame(
+            Rect{
+                bounds.x + 1, bounds.y,
+                bounds.width - 2, bounds.height
+            },
+            bg.a > 0 ? bg : dark,
+            bg.a > 0 ? WidgetState::Idle : WidgetState::Active
+        );
+
+        auto wid = GetWidget(name, Rect{ bounds.x + thumbWidth, bounds.y, bounds.width - thumbWidth * 2, bounds.height });
+
+        bool changed = false;
+        // left button
+        if (Button(name + "_left", Rect{ bounds.x, bounds.y, thumbWidth, bounds.height }, "-")) {
+            fnIncrement(value, -step);
+            value = std::clamp(value, min, max);
+            changed = true;
+        }
+
+        // right button
+        if (Button(name + "_right", Rect{ bounds.x + bounds.width - thumbWidth, bounds.y, thumbWidth, bounds.height }, "+")) {
+            fnIncrement(value, step);
+            value = std::clamp(value, min, max);
+            changed = true;
+        }
+
+        if (wid.state == WidgetState::Active) {
+            fnIncrement(value, T(m_state.mouseDelta.x * step));
+            value = std::clamp(value, min, max);
+            changed = true;
+        }
+
+        wid.value = value;
+
+        auto text = utils::StringFormat(fmt.c_str(), value);
+        auto [tw, th] = TextSize(text);
+
+        float luma = utils::Luma(bg);
+        auto textColor = luma >= 0.5f ? PixelBrightness(baseColor, 0.15f) : PixelBrightness(baseColor, 2.5f);
+
+        DrawText(
+            bounds.x + bounds.width / 2 - tw / 2,
+            bounds.y + bounds.height / 2 - th / 2,
+            text,
+            textColor
+        );
+
+        return changed;
+    }
     
     size_t m_openPopup{ 0 };
 
@@ -328,55 +398,19 @@ bool olcPGEX_TinyGUI::Spinner(
     const std::string& fmt,
     const olc::Pixel& bg
 ) {
-    const auto dark = PixelBrightness(baseColor, 0.5f);
-    const int thumbWidth = 8;
-
-    ThreeDFrame(
-        Rect{
-            bounds.x + 1, bounds.y,
-            bounds.width - 2, bounds.height
-        },
-        bg.a > 0 ? bg : dark,
-        bg.a > 0 ? WidgetState::Idle : WidgetState::Active
-    );
-
-    auto wid = GetWidget(name, Rect{ bounds.x + thumbWidth, bounds.y, bounds.width - thumbWidth * 2, bounds.height });
-
-    bool changed = false;
-    // left button
-    if (Button(name + "_left", Rect{ bounds.x, bounds.y, thumbWidth, bounds.height }, "-")) {
-		value -= step;
-		value = std::clamp(value, min, max);
-        changed = true;
-	}
-    
-	// right button
-	if (Button(name + "_right", Rect{ bounds.x + bounds.width - thumbWidth, bounds.y, thumbWidth, bounds.height }, "+")) {
-		value += step;
-		value = std::clamp(value, min, max);
-        changed = true;
-	}
-
-    if (wid.state == WidgetState::Active) {
-	    value += m_state.mouseDelta.x;
-		value = std::clamp(value, min, max);
-		changed = true;
-	}
-
-    auto text = utils::StringFormat(fmt.c_str(), value);
-	auto [tw, th] = TextSize(text);
-
-    float luma = utils::Luma(bg);
-    auto textColor = luma >= 0.5f ? PixelBrightness(baseColor, 0.15f) : PixelBrightness(baseColor, 2.5f);
-
-	DrawText(
-		bounds.x + bounds.width / 2 - tw / 2,
-		bounds.y + bounds.height / 2 - th / 2,
-        text,
-        textColor
+    return SpinnerImpl<int>(
+		name, bounds,
+		[&](int& val, int inc) { val += inc; },
+        value, min, max, step, fmt, bg
 	);
+}
 
-    return changed;
+bool olcPGEX_TinyGUI::SpinnerF(const std::string& name, Rect bounds, float& value, float min, float max, float step, const std::string& fmt, const olc::Pixel& bg) {
+    return SpinnerImpl<float>(
+		name, bounds,
+		[&](float& val, float inc) { val += inc; },
+        value, min, max, step, fmt, bg
+	);
 }
 
 bool olcPGEX_TinyGUI::EditBox(const std::string& name, Rect bounds, std::string& text) {
