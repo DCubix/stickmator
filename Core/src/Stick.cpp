@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <fstream>
 #include <memory>
+#include <cmath>
 #include <map>
 
 #include "olcPGEX_TinyGUI.h"
@@ -53,8 +54,8 @@ Stick* Stick::GetRoot() {
 
 olc::vi2d Stick::Tip() const {
     if (len <= 0) return olc::vi2d{ 0, 0 };
-    double c = std::cosf(WorldAngle()) * len;
-    double s = std::sinf(WorldAngle()) * len;
+    double c = std::cos(WorldAngle()) * len;
+    double s = std::sin(WorldAngle()) * len;
     return olc::vd2d{ c, s };
 }
 

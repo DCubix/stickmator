@@ -9,6 +9,10 @@
 
 #include <filesystem>
 
+#ifdef None
+#undef None
+#endif
+
 #define APP_VERSION "1.1"
 
 constexpr int gScreenWidth = 320;
@@ -97,6 +101,15 @@ void Launch(const std::string& path) {
 	);
     CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
+}
+#endif
+
+#ifdef __linux__
+#include <unistd.h>
+void Launch(const std::string& path) {
+    if (fork() == 0) {
+        execl(path.c_str(), 0);
+    }
 }
 #endif
 
@@ -747,7 +760,7 @@ public:
     int gFigureId{ 0 };
 };
 
-#if 0
+#if !defined(_WIN32)
 int main()
 #else 
 int APIENTRY WinMain(

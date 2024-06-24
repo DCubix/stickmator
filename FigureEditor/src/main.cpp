@@ -7,6 +7,10 @@
 
 #include <iostream>
 
+#ifdef None
+#undef None
+#endif
+
 #pragma region UndoRedo Commands
 
 class FigureEditor;
@@ -547,7 +551,7 @@ public:
 	UndoRedo undoRedo{};
 };
 
-#if 0
+#if !defined(_WIN32)
 int main()
 #else 
 int APIENTRY WinMain(

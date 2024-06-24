@@ -3,6 +3,10 @@
 #include "Utility.h"
 #include "olcPixelGameEngine.h"
 
+#ifdef None
+#undef None
+#endif
+
 #include "CommandFile.h"
 
 #include <string>

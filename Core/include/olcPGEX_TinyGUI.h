@@ -12,6 +12,10 @@
 #undef DrawText
 #endif
 
+#ifdef None
+#undef None
+#endif
+
 namespace utils {
     template <typename... Args>
     std::string StringFormat(const std::string& format, Args... args) {

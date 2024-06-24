@@ -11,14 +11,14 @@ namespace utils {
         return angle;
     }
 
-    static double Repeat(float t, float maxVal) {
-        return std::clamp(t - std::floorf(t / maxVal) * maxVal, 0.0f, maxVal);
+    static double Repeat(double t, double maxVal) {
+        return std::clamp(t - std::floor(t / maxVal) * maxVal, 0.0, maxVal);
     }
 
     // Function to lerp between two angles
     double LerpAngle(double startAngle, double endAngle, float t) {
-        double delta = Repeat(endAngle - startAngle, 2.0f * Pi);
-        if (delta > Pi) delta -= 2.0f * Pi;
+        double delta = Repeat(endAngle - startAngle, 2.0 * Pi);
+        if (delta > Pi) delta -= 2.0 * Pi;
         return startAngle + delta * std::clamp(t, 0.0f, 1.0f);
     }
 }
