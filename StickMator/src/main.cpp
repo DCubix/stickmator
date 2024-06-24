@@ -301,7 +301,12 @@ public:
         if (gui.MakePopup("popup_figure_edit", mnuFigureEditorItems.data(), mnuFigureEditorItems.size(), mnuSelFigure)) {
             switch (mnuSelFigure) {
                 case 2: {
+#ifdef _WIN32
                     Launch("FigureEditor.exe");
+#endif
+#if defined(__linux__) || defined(__APPLE__)
+                    Launch("./FigureEditor");
+#endif
                 } break;
                 case 0: mnu_FigureLoadAction(); break;
                 default: {
